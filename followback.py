@@ -34,6 +34,39 @@ def _fetch_user_id(session: requests.Session, username: str) -> str:
     return str(user["id"])
 
 
+def _fetch_user_profile(session: requests.Session, username: str) -> tuple[int, bool]:
+    """Return (follower_count, is_business) for the given username.
+
+    Uses the web_profile_info endpoint. "is_business_account" or
+    "is_professional_account" indicate a business/professional account and will
+    cause `is_business` to be True.
+
+    Raises ValueError if the profile or follower count cannot be determined.
+    """
+    response = session.get(
+        "https://i.instagram.com/api/v1/users/web_profile_info/",
+        params={"username": username},
+        timeout=30,
+    )
+    response.raise_for_status()
+    user = response.json().get("data", {}).get("user")
+    if not user:
+        raise ValueError(f"Could not find user '{username}' when fetching profile")
+
+    # follower count shapes
+    edge = user.get("edge_followed_by")
+    if isinstance(edge, dict) and "count" in edge:
+        count = int(edge["count"])
+    elif "follower_count" in user:
+        count = int(user["follower_count"])
+    else:
+        raise ValueError(f"Could not determine follower count for '{username}'")
+
+    is_business = bool(user.get("is_business_account")) or bool(user.get("is_professional_account"))
+
+    return count, is_business
+
+
 def _fetch_friendship_usernames(
     session: requests.Session,
     user_id: str,
@@ -67,8 +100,15 @@ def _fetch_friendship_usernames(
     return usernames
 
 
-def get_followers_and_following(username: str, sessionid: str) -> tuple[set[str], set[str]]:
-    session = _build_session(sessionid)
+def get_followers_and_following(
+    username: str, sessionid: str, session: requests.Session | None = None
+) -> tuple[set[str], set[str]]:
+    """Return (followers, following) for username. If a session is provided it will be reused.
+
+    Reusing the session avoids re-authenticating for subsequent per-user profile requests.
+    """
+    if session is None:
+        session = _build_session(sessionid)
     user_id = _fetch_user_id(session, username)
     followers = _fetch_friendship_usernames(session, user_id, "followers")
     following = _fetch_friendship_usernames(session, user_id, "following")
@@ -97,9 +137,21 @@ def main() -> int:
     if not args.sessionid:
         raise SystemExit("Missing sessionid. Pass --sessionid or set INSTAGRAM_SESSIONID.")
 
-    followers, following = get_followers_and_following(args.username, args.sessionid)
+    # build a single session and reuse it for per-user profile checks
+    session = _build_session(args.sessionid)
+    followers, following = get_followers_and_following(args.username, args.sessionid, session=session)
+
     for user in find_not_following_back(followers, following):
-        print(user)
+        try:
+            # fetch profile info once and filter out business/professional accounts
+            count, is_business = _fetch_user_profile(session, user)
+        except Exception:
+            # if we can't determine the profile, skip the user
+            continue
+        if is_business:
+            continue
+        if count < 10_000:
+            print(user)
 
     return 0
 

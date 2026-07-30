@@ -1,15 +1,17 @@
-# followback
+# FollowBack
 
-a tool to help you see who does not follow back on Instagram
+## Description
 
-## setup
+a tool to help you be petty and see who does not follow you back on Instagram
+
+## Setup
 
 ```bash
 python -m pip install uv
 uv sync
 ```
 
-## usage
+## Usage
 
 The script requires an authenticated Instagram `sessionid` cookie.
 
@@ -20,5 +22,18 @@ uv run python followback.py <instagram_username> --sessionid <sessionid>
 or with an environment variable:
 
 ```bash
-INSTAGRAM_SESSIONID=<sessionid> uv run python followback.py <instagram_username>
+INSTAGRAM_SESSIONID=<sessionid> uv run python followback.py <your_instagram_username>
 ```
+
+_Hint: In Chrome, go to instagram.com, login, press F12, Go to the Applications tab and copy the `sessionid` value_
+
+
+
+
+### Disclaimer
+
+* 1000% coded with vibes, use at your own peril.
+* Side effects may include:
+    - Drama
+    - Being sassy
+    - Popcorn cravings
